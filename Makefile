@@ -26,10 +26,8 @@ libsimpleparser.so.$(VERSION): simpleparser.o
 	$(CC) -s -shared -Wl,-soname,libsimpleparser.so simpleparser.o -o libsimpleparser.so.$(VERSION)
 
 install: libsimpleparser.so.$(VERSION)
-	cp -f simpleparser.h /usr/include
-	chmod 644 /usr/include/simpleparser.h
-	cp -f libsimpleparser.so.$(VERSION) /usr/lib
-	chmod 755 /usr/lib/libsimpleparser.so.$(VERSION)
+	install -m 0644 -D simpleparser.h /usr/include/simpleparser.h 
+	install -m 0755 -D libsimpleparser.so.$(VERSION) /usr/lib/libsimpleparser.so.$(VERSION)
 	ldconfig
 
 clean:
