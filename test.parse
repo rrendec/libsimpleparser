@@ -1,0 +1,13 @@
+make toast;
+make coffee regular;
+
+#this is a comment
+
+mak\
+e tea {
+	boil water;
+	add tea;
+	add sugar;
+};
+
+make more toast;

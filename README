@@ -1,0 +1,208 @@
+libsimpleparser
+===============
+
+This is a simple parsing library, suitable for parsing configuration
+files or implementing simple command-oriented languages.
+
+INSTALL
+-------
+
+This is very simple. Just do:
+make
+make install
+
+TESTING
+-------
+
+A test program called 'test' is also built. You can run
+./test < test.parse
+from the source directory. It should output something like:
+Keyword 'make' found
+Keyword 'make', arg 0: 'toast'
+Keyword 'make' - no more arguments
+Keyword 'make' found
+Keyword 'make', arg 0: 'coffee'
+Keyword 'make', arg 1: 'regular'
+Keyword 'make' - no more arguments
+Keyword 'make' found
+Keyword 'make', arg 0: 'tea'
+Keyword 'make' - found block
+Keyword 'boil' - arg 'water'
+Keyword 'add' - arg 'tea'
+Keyword 'add' - arg 'sugar'
+Keyword 'make' - end of block
+Keyword 'make' - no more arguments
+Keyword 'make' found
+Keyword 'make', arg 0: 'more'
+Keyword 'make', arg 1: 'toast'
+Keyword 'make' - no more arguments
+
+Language restrictions
+---------------------
+
+The parser is command-oriented. This means it scans the input file and
+looks for keywords (and arguments) in the following format:
+
+<keyword> [<arg1> [<arg2 [...]]];
+
+Note the ';' at the end of the line. A line can be merged with the next
+one if it ends in a '\'. Lines beginning with a '#' are ignored (unless
+the previous line ends in a '\'). Arguments can be separated by any
+number of "white characters", namely, space, tab, and new-line.
+The keyword arguments can be lists of keywords in their turn, if they
+are enclosed within braces ('{' and '}'). This is a simple nesting
+mechanism.
+
+How it works
+------------
+
+The parsing function uses an externally supplied language table, which
+defines its behavior for the various keywords. Basically, a callback
+mechanism is used: the language table contains pointers to external
+functions that are called when certain parsing events occur. Five such
+events are available:
+1. a keyword was encountered and was found in the language table;
+2. an argument for the latest encountered keyword was found;
+3. the keyword ended (a ';' was detected).
+4. an extended argument for the last keyword was found (a brace-open
+character '{' was detected);
+5. the extended argument ended (a brace-close character '}' was
+detected);
+
+An externally supplied void pointer is passed back to the external
+functions to provide a mechanism to store intermediate parsing data
+and implement external language restrictions and error detection.
+
+Using libsimpleparser in your applications
+------------------------------------------
+
+First, you have to include simpleparser.h. Add a
+#include <simpleparser.h>
+directive in your code. Next, you have to define the functions that are
+called for the keyword events. You don't need to implement functions for
+all the five events (the parser function will just ignore the event if a
+NULL pointer is passed).
+
+You need to define a structure that holds your own parsing data and
+flags. I assume that keywords cannot be nested within extended arguments
+of the the same keyword. So, the same context structure can be used
+regardless of the nesting level.
+
+All event functions return an int, which is 0 on success or a different
+value on error. All the event functions have one argument of type
+void *, which is the pointer to your parsing structure.
+
+Functions for events 1, 3, and 5 have only one argument of type
+void *, so their prototype is
+int function(void *);
+
+Functions for event 2 get one supplementary argument of type char *,
+which is the argument string. The pointer points to an internal buffer
+of the parser function, so you must copy its contents to your own data
+structures if you want to keep it as a string. Don't use free or realloc
+on that pointer, or you'll get strange results. The prototype is
+int function(void *, char *);
+
+Functions for event 4 get one supplementary argument of type
+const struct spa_keyword **, which is a double pointer. The function
+must alter the const struct spa_keyword * pointer at the address pointed
+by this argument. This gives the parser function a pointer to the
+language definition to use inside the extended argument (language
+definitions are explained below).
+
+The parser function keeps an internal stack that enables it to restore
+the previous parsing context (language definition and parsing flags)
+when exiting an extended argument. 
+
+Language definitions
+--------------------
+
+A language definition is basically a vector of 'struct spa_keyword'. It
+is highly recommended that you should look at simpleparser.h. The structure
+contains a char * pointer to the keyword, and five pointers to the event
+functions (in the order in which they are listed in this README).
+
+There are two IMPORTANT rules to observe when defining languages:
+1. the keywords MUST be in alphabetical order (this is so because I use a
+binary search algorhythm - I know hash tables are better, but I needed
+a quick hack to get things to work - this in on my todo list);
+2. the pointers in the last structure MUST be all NULL.
+
+If any of these rules is broken, you may get unpredictable results.
+
+Calling spa_parse
+-----------------
+
+You must call spa_parse with a pointer to an open file (which will be
+scanned until EOF is reached), a pointer to a spa_vars structure, and a
+pointer to the language definition.
+
+Errors
+------
+
+spa_parse will return 0 on success or a positive error code on
+failure. Fields in the spa_vars structure will be set as follows:
+- line and col are the line and column in the input file, where the error
+  occurred;
+- word will (optionally - depending on the error) point to an additional
+  string that describes the error;
+- err is the error code.
+
+You should call spa_error in order to properly deallocate the memory,
+which is (eventually) used by the word field in the error structure. You
+call spa_error with a pointer to an open file (in which the text
+describing the error will be written) and a pointer to the spa_vars
+structure. So far, there is no way to deallocate the data silently
+(without writing anything to a file). You may however get the same
+result by opening /dev/null and calling spa_error with a pointer to it
+(it's stupid, I'll fix this too in the next version).
+
+The error codes have the following meaning:
+- SPA_UNKNOWN_KEYWORD
+  A keyword was encountered, but it was not found in the language
+  definition.
+- SPA_OUT_OF_MEMORY
+  A dynamic allocation operation (malloc or realloc) failed.
+- SPA_INVALID_CHARACTER
+  The current character is invalid in the current context (for example
+  a '{' or a '}' was detected inside a keyword or argument).
+- SPA_UNEXPECTED_EOB
+  The EOB (end of block) character, '}', was detected in a proper
+  place, but no matching brace-open character exists (the parser
+  internal context stack is empty).
+- SPA_UNEXPECTED_BLOCK
+  The BOB (beginning of block) character, '{' was detected in a proper
+  place, but no event 4 function was defined for the current keyword.
+- SPA_UNEXPECTED_ARG
+  An argument for the current keyword was parsed, but no event 2
+  function was defined.
+- SPA_BLOCK_FAILED
+  The external event 5 function failed (it returned an error code other
+  than 0).
+- SPA_KEYWORD_FAILED
+  A keyword was parsed, but the external event 1 function failed.
+- SPA_EOK_FAILED
+  The external event 3 function failed.
+- SPA_ARG_FAILED
+  The external event 2 function failed.
+
+A simple example
+----------------
+
+There's a simple example program called test.c, which only reports some
+of the events for a language with only a few keywords. The program also
+illustrates the usage of extended arguments (actually two simple
+languages are defined). Run it with ./test < test.parse from the source
+directory.
+
+Reporting bugs or making suggestions
+------------------------------------
+
+Just e-mail me.
+
+Author
+------
+
+Radu Constantin Rendec
+radu@rendec.ines.ro
+http://radu.rendec.ines.ro
