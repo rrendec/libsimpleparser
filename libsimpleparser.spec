@@ -1,7 +1,7 @@
 Summary: Simple parsing library suitable for configuration files
 Name: libsimpleparser
 Version: 0.1.1
-Release: 1
+Release: 2
 Copyright: GPL
 Group: Applications/System
 Source: http://radu.rendec.ines.ro/prj/libsimpleparser/%{name}-%{version}.tar.gz
@@ -18,7 +18,7 @@ A callback mechanism is used to trigger user-defined actions when
 various events occur in the parsing machine.
 
 %prep
-%setup -q
+%setup -q -n libsimpleparser
 
 %build
 make

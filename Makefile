@@ -1,13 +1,12 @@
+NAME := libsimpleparser
+VERSION := $(shell grep '^Version:' $(NAME).spec | sed 's/[^0-9]*\([0-9\.]*\)[^0-9]*$$/\1/')
+RPMDIR := $(shell rpm --eval %{_topdir})
+
 CC=gcc
 #CFLAGS=-ggdb -DDEBUG
 #LDFLAGS=-lefence
 CFLAGS=
 LDFLAGS=
-
-MAJOR=0
-MINOR=1
-REVISION=1
-VERSION=$(MAJOR).$(MINOR).$(REVISION)
 
 .PHONY: all clean install
 
@@ -32,3 +31,9 @@ install: libsimpleparser.so.$(VERSION)
 
 clean:
 	rm -f *~ *.o libsimpleparser.so.$(VERSION) test
+
+rpm: clean
+	cp -f $(NAME).spec $(RPMDIR)/SPECS
+	cd .. && EXCLUDES=`find $(NAME) -name ".*" -mindepth 1 | sed 's/^/--exclude\n/' | xargs` \
+	&& tar zcvf $(RPMDIR)/SOURCES/$(NAME)-$(VERSION).tar.gz $(NAME) $$EXCLUDES
+	rpmbuild -ba $(RPMDIR)/SPECS/$(NAME).spec
